@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Platine">
-<meta name="theme-color" content="#171310">
+<meta name="theme-color" id="themeColorMeta" content="#171310">
 <title>Platine — Lecteur d'albums</title>
 <style>
   :root{
@@ -1251,10 +1251,20 @@
   }
 
   // ---------- Theme switch ----------
+  const themeColorMeta = document.getElementById('themeColorMeta');
+  function updateThemeColor(){
+    const isLight = document.body.classList.contains('light-mode');
+    const isConsole = document.body.classList.contains('theme-console');
+    let color;
+    if (isConsole) color = isLight ? '#eef5f1' : '#171f1c';
+    else color = isLight ? '#f5efe2' : '#14171c';
+    themeColorMeta.setAttribute('content', color);
+  }
   function setTheme(name){
     document.body.classList.remove('theme-vinyl','theme-console');
     document.body.classList.add('theme-' + name);
     themeLabel.textContent = name === 'vinyl' ? 'Vinyle' : 'Console';
+    updateThemeColor();
   }
   themeSwitch.addEventListener('click', ()=>{
     const isConsole = document.body.classList.contains('theme-console');
@@ -1276,12 +1286,14 @@
       sw.classList.toggle('active', (prefs.accent || 'amber') === sw.dataset.accent);
     });
     if (prefs.vinylFx){ vinylFxToggle.checked = true; }
+    updateThemeColor();
   }
   applyPrefsOnLoad();
 
   lightModeBtn.addEventListener('click', ()=>{
     const isLight = document.body.classList.toggle('light-mode');
     savePrefs({ light: isLight });
+    updateThemeColor();
   });
 
   accentSwatches.querySelectorAll('.swatch').forEach(sw=>{
