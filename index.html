@@ -1588,15 +1588,16 @@
   }
 
   // audio events
-  audio.addEventListener('play', ()=> updatePlayingUI(true));
-  audio.addEventListener('pause', ()=> { updatePlayingUI(false); saveResumeState(); });
+  audio.addEventListener('play', ()=> { updatePlayingUI(true); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; });
+  audio.addEventListener('pause', ()=> { updatePlayingUI(false); saveResumeState(); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
   audio.addEventListener('ended', ()=> nextTrack(true));
 
   // iOS/Chrome suspendent l'AudioContext quand l'écran se verrouille,
   // ce qui coupe le son même si la balise <audio> continue de jouer.
-  // On force la reprise dès que possible.
+  // On force la reprise le plus vite possible, y compris via un
+  // sondage périodique (les timers audio restent actifs en arrière-plan).
   function resumeAudioGraph(){
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    if (audioCtx && audioCtx.state === 'suspended' && !audio.paused) audioCtx.resume().catch(()=>{});
   }
   document.addEventListener('visibilitychange', resumeAudioGraph);
   document.addEventListener('pageshow', resumeAudioGraph);
