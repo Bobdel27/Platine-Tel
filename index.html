@@ -43,6 +43,9 @@
     --bg:#f5efe2; --panel:#ffffff; --felt:#e5dcc5; --felt-dark:#d8cca9;
     --cream:#241a10; --muted:#8a7a63; --line: rgba(36,26,16,0.14);
   }
+  body.light-mode .platter{
+    background: radial-gradient(circle at 40% 35%, #2a3040 0%, #141820 50%, #080a0e 100%);
+  }
   body.light-mode.theme-console{
     --bg:#eef5f1; --panel:#ffffff; --felt:#d9ece3; --felt-dark:#c3ded1;
     --cream:#152018; --muted:#5f7a70; --line: rgba(21,32,24,0.14);
@@ -61,7 +64,7 @@
   }
   body{
     margin:0;
-    background: radial-gradient(120% 140% at 50% -10%, #141820 0%, var(--bg) 55%);
+    background: radial-gradient(120% 140% at 50% -10%, var(--felt) 0%, var(--bg) 55%);
     color:var(--cream);
     font-family:var(--font-body);
     display:flex; justify-content:center; align-items:stretch;
@@ -195,29 +198,27 @@
     animation-play-state: paused;
   }
   .platter.spinning{ animation-play-state: running; }
-  /* Trame carbone tressé : losanges croisés */
+  /* Trame carbone tressé sur toute la surface sauf le label central */
   .platter .ridge{
     position:absolute; inset:0; border-radius:50%;
     background-image:
-      repeating-linear-gradient(45deg,  rgba(80,110,150,0.13) 0px, rgba(80,110,150,0.13) 1px, transparent 1px, transparent 6px),
-      repeating-linear-gradient(-45deg, rgba(80,110,150,0.13) 0px, rgba(80,110,150,0.13) 1px, transparent 1px, transparent 6px);
-    -webkit-mask-image: radial-gradient(circle at center, transparent 0 40%, #000 41% 100%);
-            mask-image: radial-gradient(circle at center, transparent 0 40%, #000 41% 100%);
+      repeating-linear-gradient(45deg,  rgba(80,110,150,0.12) 0px, rgba(80,110,150,0.12) 1px, transparent 1px, transparent 7px),
+      repeating-linear-gradient(-45deg, rgba(80,110,150,0.12) 0px, rgba(80,110,150,0.12) 1px, transparent 1px, transparent 7px);
   }
   .platter .sheen{ position:absolute; inset:0; border-radius:50%; pointer-events:none;
     background: conic-gradient(from 210deg at 50% 50%, rgba(100,180,255,0.18) 0deg, transparent 30deg 330deg, rgba(100,180,255,0.18) 360deg);
     mix-blend-mode: overlay; opacity:0.6; }
   .label{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:82%; height:82%; border-radius:50%; overflow:hidden;
-    background:var(--rust); display:flex; align-items:center; justify-content:center;
-    box-shadow:0 0 0 2px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.35);
+    width:48%; height:48%; border-radius:50%; overflow:hidden;
+    background:var(--felt-dark); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 0 2px rgba(100,160,220,0.15), 0 4px 14px rgba(0,0,0,0.5);
   }
   .label img{ width:100%; height:100%; object-fit:cover; }
   .label .spindle{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:5px; height:5px; border-radius:50%; background:#060810;
-    box-shadow:0 0 0 2px rgba(100,160,220,0.6); z-index:2;
+    width:4px; height:4px; border-radius:50%; background:#060810;
+    box-shadow:0 0 0 1.5px rgba(100,160,220,0.5); z-index:2;
   }
 
   .tonearm{
@@ -320,13 +321,13 @@
   body.theme-console .tracklist{ max-height:34vh; overflow-y:auto; }
 
   .vu-meters{ display:flex; justify-content:center; gap:14px; margin:14px auto 0; max-width:340px; }
-  .vu-meter{ flex:1; background:linear-gradient(180deg, #1e2430, #141820);
+  .vu-meter{ flex:1; background:linear-gradient(180deg, var(--panel), var(--felt-dark));
     clip-path: polygon(4% 100%, 0% 12%, 100% 12%, 96% 100%);
-    padding:14px 8px 8px; box-shadow:0 6px 14px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(80,140,200,0.12); }
-  .vu-meter svg{ width:100%; display:block; --muted:#4a5a6a; --rust:#4fa3d1; }
+    padding:14px 8px 8px; box-shadow:0 6px 14px rgba(0,0,0,0.5), inset 0 0 0 1px var(--line); }
+  .vu-meter svg{ width:100%; display:block; }
   .vu-needle{ transform-box: fill-box; }
-  .vu-label{ font-family:var(--font-mono); font-size:11px; font-weight:700; fill:#c8d4e0; letter-spacing:0.5px; }
-  .vu-tick-label{ font-family:var(--font-mono); font-size:9.5px; font-weight:600; fill:#c8d4e0; }
+  .vu-label{ font-family:var(--font-mono); font-size:11px; font-weight:700; fill:var(--cream); letter-spacing:0.5px; }
+  .vu-tick-label{ font-family:var(--font-mono); font-size:9.5px; font-weight:600; fill:var(--cream); }
   body.theme-console .vu-meters{ max-width:420px; margin-top:6px; }
 
   .eq-panel{
