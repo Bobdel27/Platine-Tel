@@ -1272,16 +1272,11 @@
   });
 
   // ---------- VU meters (needle) ----------
-  // Sur iOS, connecter l'audio à un AudioContext désactive la lecture en
-  // arrière-plan (l'écran éteint coupe le son). On ne crée donc le graphe
-  // audio QUE si l'utilisateur interagit avec l'EQ ou la balance.
-  // La lecture proprement dite reste sur la balise <audio> native,
-  // qui est la seule à bénéficier du Background Audio d'iOS.
-  let audioGraphRequested = false;
-
+  // On crée l'AudioContext à la première interaction utilisateur (Play),
+  // ce qui est requis par iOS. La lecture audio reste sur la balise <audio>
+  // native ; le graphe sert uniquement à l'affichage EQ/VU et aux filtres.
   function ensureAudioGraph(){
     if (audioCtx) return;
-    audioGraphRequested = true;
     try{
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioCtx.createMediaElementSource(audio);
@@ -1320,10 +1315,7 @@
   }
 
   function startEqualizer(){
-    // Ne créer le graphe audio que si l'utilisateur l'a demandé via l'EQ
-    // ou la balance — pas au simple appui sur Play, pour préserver le
-    // Background Audio iOS.
-    if (audioGraphRequested) ensureAudioGraph();
+    ensureAudioGraph();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if (eqRunning || !analyserL) return;
     eqRunning = true;
@@ -1425,7 +1417,6 @@
     return buffer;
   }
   function startVinylFx(){
-    audioGraphRequested = true;
     ensureAudioGraph();
     if (!audioCtx || vinylNoiseSource) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1443,7 +1434,6 @@
   }
 
   balanceSlider.addEventListener('input', ()=>{
-    audioGraphRequested = true;
     ensureAudioGraph();
     if (pannerNode) pannerNode.pan.value = parseFloat(balanceSlider.value);
   });
@@ -1612,7 +1602,6 @@
   function setEqBand(band, valEl, value){
     eqGains[band] = value;
     valEl.textContent = (value > 0 ? '+' : '') + value + ' dB';
-    audioGraphRequested = true;
     ensureAudioGraph();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     const f = band === 'bass' ? bassFilter : band === 'mid' ? midFilter : trebleFilter;
@@ -1640,6 +1629,23 @@
     handleFiles(audioFiles, { asFolder: true });
     e.target.value = '';
   });
+
+  // Empêcher le scroll/bounce de la page entière sur Chrome iOS.
+  // On bloque le touchmove par défaut sur document, sauf dans les zones
+  // qui ont leur propre scroll interne (les vues de l'appli).
+  document.addEventListener('touchmove', function(e){
+    // Laisser passer si l'élément touché (ou un de ses parents) est scrollable
+    let el = e.target;
+    while (el && el !== document.body){
+      if (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2){
+        const style = window.getComputedStyle(el);
+        const overflow = style.overflow + style.overflowY + style.overflowX;
+        if (/auto|scroll/.test(overflow)) return; // autoriser
+      }
+      el = el.parentElement;
+    }
+    e.preventDefault();
+  }, { passive: false });
 
   (async function init(){
     try{ await loadLibraryFromDB(); }catch(e){}
