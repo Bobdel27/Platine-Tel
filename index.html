@@ -1631,20 +1631,24 @@
   });
 
   // Empêcher le scroll/bounce de la page entière sur Chrome iOS.
-  // On bloque le touchmove par défaut sur document, sauf dans les zones
-  // qui ont leur propre scroll interne (les vues de l'appli).
-  document.addEventListener('touchmove', function(e){
-    // Laisser passer si l'élément touché (ou un de ses parents) est scrollable
-    let el = e.target;
+  // On bloque touchstart ET touchmove par défaut sur document, sauf dans
+  // les zones qui ont leur propre scroll interne (les vues de l'appli).
+  function isScrollable(el){
     while (el && el !== document.body){
       if (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2){
         const style = window.getComputedStyle(el);
         const overflow = style.overflow + style.overflowY + style.overflowX;
-        if (/auto|scroll/.test(overflow)) return; // autoriser
+        if (/auto|scroll/.test(overflow)) return true;
       }
       el = el.parentElement;
     }
-    e.preventDefault();
+    return false;
+  }
+  document.addEventListener('touchstart', function(e){
+    if (!isScrollable(e.target)) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchmove', function(e){
+    if (!isScrollable(e.target)) e.preventDefault();
   }, { passive: false });
 
   (async function init(){
