@@ -11,18 +11,18 @@
 <title>Platine — Lecteur d'albums</title>
 <style>
   :root{
-    --bg:#171310;
-    --panel:#221a13;
-    --felt:#2c2118;
-    --felt-dark:#1a130d;
-    --cream:#f1e6d2;
-    --amber:#d98f3a;
-    --rust:#a8472b;
-    --muted:#8c7a63;
-    --line: rgba(241,230,210,0.10);
+    --bg:#0a0b0d;
+    --panel:#13161a;
+    --felt:#1c2028;
+    --felt-dark:#0e1014;
+    --cream:#c8d4e0;
+    --amber:#4fa3d1;
+    --rust:#2a6fa8;
+    --muted:#4a5a6a;
+    --line: rgba(180,210,240,0.09);
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-b: env(safe-area-inset-bottom, 0px);
-    --eq-c1:#e8a33d; --eq-c2:#a8472b; --eq-c3:#f1e6d2;
+    --eq-c1:#4fa3d1; --eq-c2:#2a6fa8; --eq-c3:#c8d4e0;
     --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
     --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
@@ -60,7 +60,7 @@
   }
   body{
     margin:0;
-    background: radial-gradient(120% 140% at 50% -10%, #241b13 0%, var(--bg) 55%);
+    background: radial-gradient(120% 140% at 50% -10%, #141820 0%, var(--bg) 55%);
     color:var(--cream);
     font-family:var(--font-body);
     display:flex; justify-content:center; align-items:stretch;
@@ -184,20 +184,25 @@
   }
   .platter{
     width:100%; height:100%; border-radius:50%;
-    background: radial-gradient(circle at 50% 50%, #453a2e 0%, #2c2419 62%, #1c170f 100%);
-    box-shadow:0 18px 34px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(241,230,210,0.08);
+    background: radial-gradient(circle at 40% 35%, #2a3040 0%, #141820 50%, #080a0e 100%);
+    box-shadow:0 18px 34px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(100,160,220,0.10);
     position:relative; overflow:hidden; z-index:1;
     animation: spin 4.5s linear infinite;
     animation-play-state: paused;
   }
   .platter.spinning{ animation-play-state: running; }
-  .platter .ridge{ position:absolute; inset:0; border-radius:50%;
-    background:repeating-radial-gradient(circle at center, transparent 0 7px, rgba(241,230,210,0.11) 7px 8px);
+  /* Trame carbone tressé : losanges croisés */
+  .platter .ridge{
+    position:absolute; inset:0; border-radius:50%;
+    background-image:
+      repeating-linear-gradient(45deg,  rgba(80,110,150,0.13) 0px, rgba(80,110,150,0.13) 1px, transparent 1px, transparent 6px),
+      repeating-linear-gradient(-45deg, rgba(80,110,150,0.13) 0px, rgba(80,110,150,0.13) 1px, transparent 1px, transparent 6px);
     -webkit-mask-image: radial-gradient(circle at center, transparent 0 40%, #000 41% 100%);
-            mask-image: radial-gradient(circle at center, transparent 0 40%, #000 41% 100%); }
+            mask-image: radial-gradient(circle at center, transparent 0 40%, #000 41% 100%);
+  }
   .platter .sheen{ position:absolute; inset:0; border-radius:50%; pointer-events:none;
-    background: conic-gradient(from 210deg at 50% 50%, rgba(255,255,255,0.16) 0deg, transparent 30deg 330deg, rgba(255,255,255,0.16) 360deg);
-    mix-blend-mode: overlay; opacity:0.5; }
+    background: conic-gradient(from 210deg at 50% 50%, rgba(100,180,255,0.18) 0deg, transparent 30deg 330deg, rgba(100,180,255,0.18) 360deg);
+    mix-blend-mode: overlay; opacity:0.6; }
   .label{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     width:82%; height:82%; border-radius:50%; overflow:hidden;
@@ -207,8 +212,8 @@
   .label img{ width:100%; height:100%; object-fit:cover; }
   .label .spindle{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:9px; height:9px; border-radius:50%; background:#0d0906;
-    box-shadow:0 0 0 4px rgba(241,230,210,0.85); z-index:2;
+    width:5px; height:5px; border-radius:50%; background:#060810;
+    box-shadow:0 0 0 2px rgba(100,160,220,0.6); z-index:2;
   }
 
   .tonearm{
@@ -249,7 +254,7 @@
   .ctrl{ background:none; border:none; color:var(--cream); cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .ctrl.play-pause{
     width:58px; height:58px; border-radius:50%; background:var(--amber); color:#20160a;
-    box-shadow:0 10px 22px rgba(217,143,58,0.35);
+    box-shadow:0 10px 22px rgba(79,163,209,0.35);
   }
   .ctrl.mini{ width:34px; height:34px; color:var(--muted); }
   .ctrl.mini.active{ color:var(--amber); }
@@ -311,13 +316,13 @@
   body.theme-console .tracklist{ max-height:34vh; overflow-y:auto; }
 
   .vu-meters{ display:flex; justify-content:center; gap:14px; margin:14px auto 0; max-width:340px; }
-  .vu-meter{ flex:1; background:linear-gradient(180deg, #f2e8d2, #e0d2ae);
+  .vu-meter{ flex:1; background:linear-gradient(180deg, #1e2430, #141820);
     clip-path: polygon(4% 100%, 0% 12%, 100% 12%, 96% 100%);
-    padding:14px 8px 8px; box-shadow:0 6px 14px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.15); }
-  .vu-meter svg{ width:100%; display:block; --muted:#8a7a5c; --rust:#a8302a; }
+    padding:14px 8px 8px; box-shadow:0 6px 14px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(80,140,200,0.12); }
+  .vu-meter svg{ width:100%; display:block; --muted:#4a5a6a; --rust:#4fa3d1; }
   .vu-needle{ transform-box: fill-box; }
-  .vu-label{ font-family:var(--font-mono); font-size:11px; font-weight:700; fill:#221a10; letter-spacing:0.5px; }
-  .vu-tick-label{ font-family:var(--font-mono); font-size:9.5px; font-weight:600; fill:#221a10; }
+  .vu-label{ font-family:var(--font-mono); font-size:11px; font-weight:700; fill:#c8d4e0; letter-spacing:0.5px; }
+  .vu-tick-label{ font-family:var(--font-mono); font-size:9.5px; font-weight:600; fill:#c8d4e0; }
   body.theme-console .vu-meters{ max-width:420px; margin-top:6px; }
 
   .eq-panel{
@@ -506,29 +511,29 @@
       <div class="vu-meters" id="vuMeters">
         <div class="vu-meter">
           <svg viewBox="0 0 220 140">
-            <g class="vu-scale" id="vuScaleL"></g>
             <g id="vuNeedleL" transform="rotate(-65 110 125)">
-              <line x1="110" y1="125" x2="110" y2="139" stroke="#20160a" stroke-width="3.4" stroke-linecap="round"/>
-              <polygon points="106,125 114,125 111,38 109,38" fill="#1a1410"/>
-              <polygon points="109.9,38 110.1,38 110.5,8 109.5,8" fill="#c62d1f"/>
+              <line x1="110" y1="125" x2="110" y2="139" stroke="#0a0c10" stroke-width="3.4" stroke-linecap="round"/>
+              <polygon points="106.5,125 113.5,125 111.2,42 108.8,42" fill="#1e2430"/>
+              <polygon points="109.5,42 110.5,42 110.8,28 109.2,28" fill="#4fa3d1"/>
             </g>
-            <circle cx="110" cy="125" r="7" fill="#1a1410"/>
-            <circle cx="110" cy="125" r="3.2" fill="#c9b892"/>
-            <circle cx="109" cy="124" r="1" fill="#f1e6d2" opacity="0.8"/>
+            <g class="vu-scale" id="vuScaleL"></g>
+            <circle cx="110" cy="125" r="7" fill="#0e1014"/>
+            <circle cx="110" cy="125" r="3.2" fill="#4a5a6a"/>
+            <circle cx="109" cy="124" r="1" fill="#c8d4e0" opacity="0.8"/>
             <text x="110" y="106" text-anchor="middle" class="vu-label">VU · L</text>
           </svg>
         </div>
         <div class="vu-meter">
           <svg viewBox="0 0 220 140">
-            <g class="vu-scale" id="vuScaleR"></g>
             <g id="vuNeedleR" transform="rotate(-65 110 125)">
-              <line x1="110" y1="125" x2="110" y2="139" stroke="#20160a" stroke-width="3.4" stroke-linecap="round"/>
-              <polygon points="106,125 114,125 111,38 109,38" fill="#1a1410"/>
-              <polygon points="109.9,38 110.1,38 110.5,8 109.5,8" fill="#c62d1f"/>
+              <line x1="110" y1="125" x2="110" y2="139" stroke="#0a0c10" stroke-width="3.4" stroke-linecap="round"/>
+              <polygon points="106.5,125 113.5,125 111.2,42 108.8,42" fill="#1e2430"/>
+              <polygon points="109.5,42 110.5,42 110.8,28 109.2,28" fill="#4fa3d1"/>
             </g>
-            <circle cx="110" cy="125" r="7" fill="#1a1410"/>
-            <circle cx="110" cy="125" r="3.2" fill="#c9b892"/>
-            <circle cx="109" cy="124" r="1" fill="#f1e6d2" opacity="0.8"/>
+            <g class="vu-scale" id="vuScaleR"></g>
+            <circle cx="110" cy="125" r="7" fill="#0e1014"/>
+            <circle cx="110" cy="125" r="3.2" fill="#4a5a6a"/>
+            <circle cx="109" cy="124" r="1" fill="#c8d4e0" opacity="0.8"/>
             <text x="110" y="106" text-anchor="middle" class="vu-label">VU · R</text>
           </svg>
         </div>
@@ -1219,7 +1224,7 @@
     tonearm.classList.toggle('down', playing);
     playIcon.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
     if (playing){ startEqualizer(); if (vinylFxToggle.checked) startVinylFx(); }
-    else { eqRunning = false; stopVinylFx(); }
+    else { eqRunning = false; stopVinylFx(); /* aiguilles restent en place */ }
   }
 
   // ---------- Theme switch ----------
@@ -1383,7 +1388,20 @@
   buildVUScale(document.getElementById('vuScaleR'));
 
   function drawEqualizer(){
-    if (!eqRunning) { return; }
+    if (!eqRunning){
+      // Retombée douce des aiguilles vers -65° (repos) puis arrêt
+      const restAngle = -65;
+      const dL = restAngle - needleAngleL;
+      const dR = restAngle - needleAngleR;
+      if (Math.abs(dL) > 0.3 || Math.abs(dR) > 0.3){
+        needleAngleL += dL * 0.06;
+        needleAngleR += dR * 0.06;
+        vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
+        vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
+        requestAnimationFrame(drawEqualizer);
+      }
+      return;
+    }
     const targetL = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserL, timeDataL), 0.0001)));
     const targetR = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserR, timeDataR), 0.0001)));
     needleAngleL += (targetL - needleAngleL) * (targetL > needleAngleL ? 0.35 : 0.08);
