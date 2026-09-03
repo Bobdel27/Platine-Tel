@@ -1591,6 +1591,17 @@
   audio.addEventListener('play', ()=> updatePlayingUI(true));
   audio.addEventListener('pause', ()=> { updatePlayingUI(false); saveResumeState(); });
   audio.addEventListener('ended', ()=> nextTrack(true));
+
+  // iOS/Chrome suspendent l'AudioContext quand l'écran se verrouille,
+  // ce qui coupe le son même si la balise <audio> continue de jouer.
+  // On force la reprise dès que possible.
+  function resumeAudioGraph(){
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  }
+  document.addEventListener('visibilitychange', resumeAudioGraph);
+  document.addEventListener('pageshow', resumeAudioGraph);
+  window.addEventListener('focus', resumeAudioGraph);
+  audio.addEventListener('play', resumeAudioGraph);
   let lastResumeSave = 0;
   let lastPositionUpdate = 0;
   audio.addEventListener('timeupdate', ()=>{
