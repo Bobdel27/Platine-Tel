@@ -1259,6 +1259,7 @@
     if (isConsole) color = isLight ? '#eef5f1' : '#171f1c';
     else color = isLight ? '#f5efe2' : '#14171c';
     themeColorMeta.setAttribute('content', color);
+    document.documentElement.style.background = color;
   }
   function setTheme(name){
     document.body.classList.remove('theme-vinyl','theme-console');
