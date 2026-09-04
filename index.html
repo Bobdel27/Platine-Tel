@@ -836,6 +836,11 @@
   }
 
   async function loadLibraryFromDB(){
+    // Révoquer les blob URLs de covers déjà allouées pour éviter les fuites mémoire
+    albums.forEach(a => {
+      if (a.cover) URL.revokeObjectURL(a.cover);
+      a.tracks.forEach(t => { if (t.cover && t.cover !== a.cover) URL.revokeObjectURL(t.cover); });
+    });
     let rows = [];
     try{ rows = await dbLoadAll(); }catch(e){ rows = []; }
     albums = rows.filter(r => r.tracks.length).map(r=>{
@@ -929,10 +934,16 @@
     if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2)) !== 'ID3') return null;
     const majorVersion = dv.getUint8(3);
     const flags = dv.getUint8(5);
-    if (flags & 0x40) return null; // extended header present — skip for simplicity
     const size = synchsafe32(dv, 6);
     const end = Math.min(10 + size, buf.byteLength);
+    // Si un extended header est présent, le sauter plutôt que d'abandonner le fichier.
     let offset = 10;
+    if (flags & 0x40){
+      if (offset + 4 > end) return null;
+      const extSize = (majorVersion >= 4) ? synchsafe32(dv, offset) : dv.getUint32(offset);
+      offset += extSize;
+      if (offset >= end) return null;
+    }
     const result = {};
     while (offset + 10 <= end){
       const frameId = String.fromCharCode(dv.getUint8(offset), dv.getUint8(offset+1), dv.getUint8(offset+2), dv.getUint8(offset+3));
@@ -964,9 +975,11 @@
     const p = new Promise((resolve)=>{
       const a = new Audio();
       a.preload = 'metadata';
-      a.src = URL.createObjectURL(file);
-      a.onloadedmetadata = ()=> resolve(isFinite(a.duration) ? a.duration : 0);
-      a.onerror = ()=> resolve(0);
+      const url = URL.createObjectURL(file);
+      a.src = url;
+      const cleanup = ()=> URL.revokeObjectURL(url);
+      a.onloadedmetadata = ()=>{ cleanup(); resolve(isFinite(a.duration) ? a.duration : 0); };
+      a.onerror = ()=>{ cleanup(); resolve(0); };
     });
     return withTimeout(p, 6000, 0);
   }
@@ -1225,10 +1238,14 @@
     });
   }
 
+  let _currentTrackUrl = null;
   function loadTrack(idx, autoplay, seekTime){
     currentIndex = idx;
     const t = currentAlbum.tracks[idx];
-    audio.src = URL.createObjectURL(t.file);
+    // Révoquer l'ancienne blob URL avant d'en créer une nouvelle
+    if (_currentTrackUrl){ URL.revokeObjectURL(_currentTrackUrl); }
+    _currentTrackUrl = URL.createObjectURL(t.file);
+    audio.src = _currentTrackUrl;
     trackTitle.textContent = t.title;
     trackArtist.textContent = t.artist;
     highlightRow();
@@ -1269,11 +1286,15 @@
   }
   themeSwitch.addEventListener('click', ()=>{
     const isConsole = document.body.classList.contains('theme-console');
-    setTheme(isConsole ? 'vinyl' : 'console');
+    const next = isConsole ? 'vinyl' : 'console';
+    setTheme(next);
+    savePrefs({ theme: next });
     applyTouchLocks();
     if (!audio.paused) startEqualizer();
   });
-  setTheme('vinyl');
+  // Restaurer le thème sauvegardé, sinon Vinyle par défaut
+  setTheme(loadPrefs().theme || 'vinyl');
+  applyTouchLocks();
 
   // ---------- Settings panel: light/dark, accent color, vinyl crackle ----------
   settingsBtn.addEventListener('click', ()=>{
@@ -1428,7 +1449,7 @@
 
   function drawEqualizer(){
     if (!eqRunning){
-      // Retombée douce des aiguilles vers -65° (repos) puis arrêt
+      // Retombée douce des aiguilles vers -65° (repos) puis arrêt définitif
       const restAngle = -65;
       const dL = restAngle - needleAngleL;
       const dR = restAngle - needleAngleR;
@@ -1438,6 +1459,12 @@
         vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
         vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
         requestAnimationFrame(drawEqualizer);
+      } else {
+        // Caler exactement à la position de repos pour éviter un rAF infini
+        needleAngleL = restAngle;
+        needleAngleR = restAngle;
+        vuNeedleL.setAttribute('transform', 'rotate(' + restAngle + ' 110 125)');
+        vuNeedleR.setAttribute('transform', 'rotate(' + restAngle + ' 110 125)');
       }
       return;
     }
@@ -1520,6 +1547,7 @@
     if (!currentAlbum) return;
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
+    if (pos === -1) pos = 0; // sécurité : index introuvable dans l'ordre (ex. shuffle désynchronisé)
     if (pos < order.length - 1){
       loadTrack(order[pos+1], true);
     } else if (repeatOn){
@@ -1534,6 +1562,7 @@
     if (audio.currentTime > 3){ audio.currentTime = 0; return; }
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
+    if (pos === -1) pos = 0; // sécurité : index introuvable
     if (pos > 0){ loadTrack(order[pos-1], true); }
     else { audio.currentTime = 0; }
   }
