@@ -552,11 +552,11 @@
           <svg viewBox="0 0 220 160">
             <rect x="9" y="9" width="202" height="122" rx="6" fill="#efe0ab"/>
             <rect x="9" y="9" width="202" height="122" rx="6" fill="none" stroke="#00000040" stroke-width="1"/>
-            <g id="vuNeedleR" transform="rotate(-65 110 125)">
+            <g id="vuNeedleL" transform="rotate(-65 110 125)">
               <line x1="110" y1="125" x2="110" y2="139" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
               <polygon points="107.3,125 112.7,125 110.9,32 109.1,32" fill="#141414"/>
             </g>
-            <g class="vu-scale" id="vuScaleR"></g>
+            <g class="vu-scale" id="vuScaleL"></g>
             <circle cx="110" cy="125" r="6.5" fill="#141414"/>
             <circle cx="110" cy="125" r="3" fill="#3a3a3a"/>
             <circle cx="109.2" cy="124.2" r="0.9" fill="#c9c9c9"/>
@@ -568,11 +568,11 @@
           <svg viewBox="0 0 220 160">
             <rect x="9" y="9" width="202" height="122" rx="6" fill="#efe0ab"/>
             <rect x="9" y="9" width="202" height="122" rx="6" fill="none" stroke="#00000040" stroke-width="1"/>
-            <g id="vuNeedleL" transform="rotate(-65 110 125)">
+            <g id="vuNeedleR" transform="rotate(-65 110 125)">
               <line x1="110" y1="125" x2="110" y2="139" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
               <polygon points="107.3,125 112.7,125 110.9,32 109.1,32" fill="#141414"/>
             </g>
-            <g class="vu-scale" id="vuScaleL"></g>
+            <g class="vu-scale" id="vuScaleR"></g>
             <circle cx="110" cy="125" r="6.5" fill="#141414"/>
             <circle cx="110" cy="125" r="3" fill="#3a3a3a"/>
             <circle cx="109.2" cy="124.2" r="0.9" fill="#c9c9c9"/>
@@ -722,6 +722,7 @@
 
   let audioCtx = null, splitter = null, analyserL = null, analyserR = null;
   let timeDataL = null, timeDataR = null, eqRunning = false;
+  let eqRafId = null;
   let needleAngleL = -65, needleAngleR = -65;
 
   let vinylFxNode = null, vinylFxGain = null;
@@ -1276,8 +1277,15 @@
     platter.classList.toggle('spinning', playing);
     tonearm.classList.toggle('down', playing);
     playIcon.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
-    if (playing){ startEqualizer(); if (vinylFxToggle.checked) startVinylFx(); }
-    else { eqRunning = false; stopVinylFx(); /* aiguilles restent en place */ }
+    if (playing){
+      startEqualizer();
+      if (vinylFxToggle.checked) startVinylFx();
+    } else {
+      eqRunning = false;
+      if (eqRafId !== null){ cancelAnimationFrame(eqRafId); eqRafId = null; }
+      stopVinylFx();
+      drawEqualizer();
+    }
   }
 
   // ---------- Theme switch ----------
@@ -1354,45 +1362,70 @@
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioCtx.createMediaElementSource(audio);
 
+      // EQ
       bassFilter = audioCtx.createBiquadFilter();
       bassFilter.type = 'lowshelf'; bassFilter.frequency.value = 200; bassFilter.gain.value = eqGains.bass;
-
       midFilter = audioCtx.createBiquadFilter();
       midFilter.type = 'peaking'; midFilter.frequency.value = 1000; midFilter.Q.value = 0.9; midFilter.gain.value = eqGains.mid;
-
       trebleFilter = audioCtx.createBiquadFilter();
       trebleFilter.type = 'highshelf'; trebleFilter.frequency.value = 3200; trebleFilter.gain.value = eqGains.treble;
 
-      pannerNode = audioCtx.createStereoPanner ? audioCtx.createStereoPanner() : null;
+      // Panner (optionnel)
+      try {
+        pannerNode = audioCtx.createStereoPanner();
+        pannerNode.pan.value = parseFloat(balanceSlider.value) || 0;
+      } catch(e) { pannerNode = null; }
 
-      splitter = audioCtx.createChannelSplitter(2);
-      analyserL = audioCtx.createAnalyser(); analyserL.fftSize = 1024; analyserL.smoothingTimeConstant = 0;
-      analyserR = audioCtx.createAnalyser(); analyserR.fftSize = 1024; analyserR.smoothingTimeConstant = 0;
-      timeDataL = new Uint8Array(analyserL.fftSize);
-      timeDataR = new Uint8Array(analyserR.fftSize);
-
+      // Chaîne EQ → destination
       source.connect(bassFilter);
       bassFilter.connect(midFilter);
       midFilter.connect(trebleFilter);
-      const outNode = pannerNode || trebleFilter;
-      if (pannerNode){ trebleFilter.connect(pannerNode); pannerNode.pan.value = parseFloat(balanceSlider.value) || 0; }
-      outNode.connect(audioCtx.destination);
-      outNode.connect(splitter);
+      if (pannerNode){
+        trebleFilter.connect(pannerNode);
+        pannerNode.connect(audioCtx.destination);
+      } else {
+        trebleFilter.connect(audioCtx.destination);
+      }
+
+      // Splitter → analysers VU (branché sur trebleFilter, avant le panner)
+      splitter = audioCtx.createChannelSplitter(2);
+      trebleFilter.connect(splitter);
+      analyserL = audioCtx.createAnalyser();
+      analyserL.fftSize = 1024;
+      analyserL.smoothingTimeConstant = 0;
+      analyserR = audioCtx.createAnalyser();
+      analyserR.fftSize = 1024;
+      analyserR.smoothingTimeConstant = 0;
+      timeDataL = new Uint8Array(analyserL.fftSize);
+      timeDataR = new Uint8Array(analyserR.fftSize);
       splitter.connect(analyserL, 0);
       splitter.connect(analyserR, 1);
 
+      // Vinyl FX
       vinylFxGain = audioCtx.createGain();
       vinylFxGain.gain.value = 0.22;
       vinylFxGain.connect(audioCtx.destination);
-    }catch(e){ /* graph already connected or unsupported */ }
+
+    }catch(e){ console.error('[VU] AudioGraph error:', e); audioCtx = null; }
   }
 
   function startEqualizer(){
+    console.log('[VU] startEqualizer called');
     ensureAudioGraph();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    if (eqRunning || !analyserL) return;
+    console.log('[VU] analyserL:', analyserL, 'audioCtx:', audioCtx ? audioCtx.state : 'null');
+    if (!analyserL) { console.error('[VU] analyserL is null - graph failed'); return; }
+    if (eqRafId !== null){ cancelAnimationFrame(eqRafId); eqRafId = null; }
     eqRunning = true;
-    drawEqualizer();
+    if (audioCtx && audioCtx.state === 'suspended'){
+      console.log('[VU] audioCtx suspended, resuming...');
+      audioCtx.resume().then(()=>{
+        console.log('[VU] audioCtx resumed, state:', audioCtx.state);
+        if (eqRunning) drawEqualizer();
+      }).catch((e)=>{ console.error('[VU] resume failed:', e); });
+    } else {
+      console.log('[VU] audioCtx already running, starting draw');
+      drawEqualizer();
+    }
   }
 
   function rmsLevel(analyser, data){
@@ -1468,21 +1501,27 @@
         needleAngleR += dR * 0.06;
         vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
         vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
-        requestAnimationFrame(drawEqualizer);
+        // Ne relancer la retombée que si eqRunning est toujours false
+        if (!eqRunning){ eqRafId = requestAnimationFrame(drawEqualizer); }
+        else { eqRafId = null; } // play relancé pendant la retombée → on laisse startEqualizer prendre la main
       } else {
         needleAngleL = -65; needleAngleR = -65;
         vuNeedleL.setAttribute('transform','rotate(-65 110 125)');
         vuNeedleR.setAttribute('transform','rotate(-65 110 125)');
+        eqRafId = null;
       }
       return;
     }
-    const targetL = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserL, timeDataL), 0.0001)));
-    const targetR = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserR, timeDataR), 0.0001)));
+    const rmsL = rmsLevel(analyserL, timeDataL);
+    const rmsR = rmsLevel(analyserR, timeDataR);
+    if (Math.random() < 0.02) console.log('[VU] rmsL:', rmsL.toFixed(4), 'rmsR:', rmsR.toFixed(4), 'audioState:', audioCtx ? audioCtx.state : 'null');
+    const targetL = dbToAngle(20 * Math.log10(Math.max(rmsL, 0.0001)));
+    const targetR = dbToAngle(20 * Math.log10(Math.max(rmsR, 0.0001)));
     needleAngleL += (targetL - needleAngleL) * (targetL > needleAngleL ? 0.35 : 0.08);
     needleAngleR += (targetR - needleAngleR) * (targetR > needleAngleR ? 0.35 : 0.08);
     vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
     vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
-    requestAnimationFrame(drawEqualizer);
+    eqRafId = requestAnimationFrame(drawEqualizer);
   }
 
   let vinylNoiseSource = null;
