@@ -100,11 +100,18 @@
     color:var(--muted); text-transform:uppercase;
   }
 
-  .screen{ flex:1; min-height:0; overflow:hidden; position:relative; padding:0 16px; }
-  .view{ position:absolute; inset:0; padding:0 16px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  .screen{ flex:1; min-height:0; position:relative; padding:0; overflow:hidden; }
+  .view{
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    width:100%; height:100%;
+    padding:0 16px;
+    overflow-y:scroll; -webkit-overflow-scrolling:touch;
     touch-action: pan-y;
-    overscroll-behavior: contain;
-    opacity:1; transform:translateX(0); transition:opacity .28s ease, transform .28s ease; }
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+    opacity:1; transform:translateX(0); transition:opacity .28s ease, transform .28s ease;
+    box-sizing:border-box;
+  }
   .view.hidden{ opacity:0; pointer-events:none; transform:translateX(14px); }
   .view::-webkit-scrollbar{ display:none; }
 
@@ -1754,26 +1761,51 @@
   function applyTouchLocks(){
     const isConsole = document.body.classList.contains('theme-console');
     if (isConsole){
-      // Mode console : laisser le body défiler normalement
+      // Mode console : tout déverrouiller, la page défile librement
       document.documentElement.style.touchAction = '';
       document.body.style.touchAction = '';
       document.querySelector('.device').style.touchAction = '';
+      document.querySelector('.screen').style.touchAction = '';
       document.querySelectorAll('.view').forEach(v => v.style.touchAction = '');
     } else {
-      // Mode vinyle (mobile) : bloquer le bounce iOS
+      // Mode vinyle (mobile) : bloquer le bounce sur les conteneurs fixes,
+      // mais autoriser pan-y sur tout ce qui peut scroller (.screen et .view).
       document.documentElement.style.touchAction = 'none';
       document.body.style.touchAction = 'none';
       document.querySelector('.device').style.touchAction = 'none';
+      // .screen et .view doivent être pan-y pour qu'iOS autorise le scroll vertical
+      document.querySelector('.screen').style.touchAction = 'pan-y';
       document.querySelectorAll('.view').forEach(v => v.style.touchAction = 'pan-y');
     }
   }
   applyTouchLocks();
 
-  // Verrou anti-rebond iOS Safari : uniquement hors mode console
+  // Anti-bounce iOS/Chrome : bloquer le scroll du document (body fixe),
+  // mais laisser défiler les .view. On attache un listener wheel+touchmove
+  // directement sur chaque .view pour gérer le clamp aux bornes sans
+  // propager au body (ce qui freezerait Chrome).
   document.addEventListener('touchmove', function(e){
     if (document.body.classList.contains('theme-console')) return;
-    if (!e.target.closest('.view')) e.preventDefault();
+    let node = e.target;
+    while (node && node !== document.documentElement){
+      const ov = window.getComputedStyle(node).overflowY;
+      if ((ov === 'auto' || ov === 'scroll') && node.scrollHeight > node.clientHeight) return;
+      node = node.parentElement;
+    }
+    e.preventDefault();
   }, { passive:false });
+
+  // Chrome : empêcher la propagation du wheel au body quand la .view
+  // est déjà en butée haut ou bas (sinon Chrome freeze le scroll suivant).
+  document.querySelectorAll('.view').forEach(function(view){
+    view.addEventListener('wheel', function(e){
+      const atTop = view.scrollTop === 0;
+      const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 1;
+      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)){
+        e.preventDefault();
+      }
+    }, { passive:false });
+  });
 
   (async function init(){
     try{ await loadLibraryFromDB(); }catch(e){}
