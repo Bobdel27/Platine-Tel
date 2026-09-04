@@ -60,8 +60,11 @@
     height:100%; height:100dvh;
     overflow:hidden;
     position:fixed; width:100%;
-    touch-action: none;
     overscroll-behavior: none;
+  }
+  /* iPhone uniquement : pas de position:fixed sur html (conflit scroll Safari iOS) */
+  html.is-iphone{
+    position:static;
   }
   body{
     margin:0;
@@ -75,6 +78,11 @@
     touch-action: none;
     overscroll-behavior: none;
   }
+  /* iPhone : body pas fixed, touch-action permissif */
+  body.is-iphone{
+    position:static;
+    touch-action: pan-x pan-y;
+  }
   .device{
     width:100%; max-width:460px;
     display:flex; flex-direction:column;
@@ -84,6 +92,9 @@
     overflow:hidden;
     touch-action: none;
     overscroll-behavior: none;
+  }
+  body.is-iphone .device{
+    touch-action: pan-x pan-y;
   }
   .topbar{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -103,16 +114,18 @@
   .screen{ flex:1; min-height:0; position:relative; padding:0; overflow:hidden; }
   .view{
     position:absolute; top:0; left:0; right:0; bottom:0;
-    width:100%; height:100%;
+    width:100%; height:100%; box-sizing:border-box;
     padding:0 16px;
-    overflow-y:scroll; -webkit-overflow-scrolling:touch;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
     touch-action: pan-y;
     overscroll-behavior-y: contain;
     overscroll-behavior-x: none;
-    opacity:1; transform:translateX(0); transition:opacity .28s ease, transform .28s ease;
-    box-sizing:border-box;
+    opacity:1; transform:translateX(0);
+    transition:opacity .28s ease, transform .28s ease;
   }
+  body.is-iphone .view{ transform:translateZ(0); }
   .view.hidden{ opacity:0; pointer-events:none; transform:translateX(14px); }
+  body.is-iphone .view.hidden{ transform:translateX(14px) translateZ(0); }
   .view::-webkit-scrollbar{ display:none; }
 
   /* ---------- Library view ---------- */
@@ -304,7 +317,7 @@
   .theme-switch span{ font-family:var(--font-mono); font-size:9.5px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; padding-right:4px; }
 
   /* ---------- Console (desktop) theme ---------- */
-  body.theme-console{ overflow:auto; align-items:flex-start; }
+  body.theme-console{ overflow:auto; align-items:flex-start; justify-content:center; }
   body.theme-console .device{
     max-width:1080px; height:auto; min-height:100vh; padding:28px 0 24px;
   }
@@ -843,11 +856,6 @@
   }
 
   async function loadLibraryFromDB(){
-    // Révoquer les blob URLs de covers déjà allouées pour éviter les fuites mémoire
-    albums.forEach(a => {
-      if (a.cover) URL.revokeObjectURL(a.cover);
-      a.tracks.forEach(t => { if (t.cover && t.cover !== a.cover) URL.revokeObjectURL(t.cover); });
-    });
     let rows = [];
     try{ rows = await dbLoadAll(); }catch(e){ rows = []; }
     albums = rows.filter(r => r.tracks.length).map(r=>{
@@ -943,7 +951,6 @@
     const flags = dv.getUint8(5);
     const size = synchsafe32(dv, 6);
     const end = Math.min(10 + size, buf.byteLength);
-    // Si un extended header est présent, le sauter plutôt que d'abandonner le fichier.
     let offset = 10;
     if (flags & 0x40){
       if (offset + 4 > end) return null;
@@ -984,9 +991,9 @@
       a.preload = 'metadata';
       const url = URL.createObjectURL(file);
       a.src = url;
-      const cleanup = ()=> URL.revokeObjectURL(url);
-      a.onloadedmetadata = ()=>{ cleanup(); resolve(isFinite(a.duration) ? a.duration : 0); };
-      a.onerror = ()=>{ cleanup(); resolve(0); };
+      const done = (val)=>{ URL.revokeObjectURL(url); resolve(val); };
+      a.onloadedmetadata = ()=> done(isFinite(a.duration) ? a.duration : 0);
+      a.onerror = ()=> done(0);
     });
     return withTimeout(p, 6000, 0);
   }
@@ -1249,8 +1256,7 @@
   function loadTrack(idx, autoplay, seekTime){
     currentIndex = idx;
     const t = currentAlbum.tracks[idx];
-    // Révoquer l'ancienne blob URL avant d'en créer une nouvelle
-    if (_currentTrackUrl){ URL.revokeObjectURL(_currentTrackUrl); }
+    if (_currentTrackUrl) URL.revokeObjectURL(_currentTrackUrl);
     _currentTrackUrl = URL.createObjectURL(t.file);
     audio.src = _currentTrackUrl;
     trackTitle.textContent = t.title;
@@ -1296,12 +1302,9 @@
     const next = isConsole ? 'vinyl' : 'console';
     setTheme(next);
     savePrefs({ theme: next });
-    applyTouchLocks();
     if (!audio.paused) startEqualizer();
   });
-  // Restaurer le thème sauvegardé, sinon Vinyle par défaut
   setTheme(loadPrefs().theme || 'vinyl');
-  applyTouchLocks();
 
   // ---------- Settings panel: light/dark, accent color, vinyl crackle ----------
   settingsBtn.addEventListener('click', ()=>{
@@ -1456,7 +1459,7 @@
 
   function drawEqualizer(){
     if (!eqRunning){
-      // Retombée douce des aiguilles vers -65° (repos) puis arrêt définitif
+      // Retombée douce des aiguilles vers -65° (repos) puis arrêt
       const restAngle = -65;
       const dL = restAngle - needleAngleL;
       const dR = restAngle - needleAngleR;
@@ -1467,11 +1470,9 @@
         vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
         requestAnimationFrame(drawEqualizer);
       } else {
-        // Caler exactement à la position de repos pour éviter un rAF infini
-        needleAngleL = restAngle;
-        needleAngleR = restAngle;
-        vuNeedleL.setAttribute('transform', 'rotate(' + restAngle + ' 110 125)');
-        vuNeedleR.setAttribute('transform', 'rotate(' + restAngle + ' 110 125)');
+        needleAngleL = -65; needleAngleR = -65;
+        vuNeedleL.setAttribute('transform','rotate(-65 110 125)');
+        vuNeedleR.setAttribute('transform','rotate(-65 110 125)');
       }
       return;
     }
@@ -1554,7 +1555,7 @@
     if (!currentAlbum) return;
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
-    if (pos === -1) pos = 0; // sécurité : index introuvable dans l'ordre (ex. shuffle désynchronisé)
+    if (pos === -1) pos = 0;
     if (pos < order.length - 1){
       loadTrack(order[pos+1], true);
     } else if (repeatOn){
@@ -1569,7 +1570,7 @@
     if (audio.currentTime > 3){ audio.currentTime = 0; return; }
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
-    if (pos === -1) pos = 0; // sécurité : index introuvable
+    if (pos === -1) pos = 0;
     if (pos > 0){ loadTrack(order[pos-1], true); }
     else { audio.currentTime = 0; }
   }
@@ -1756,56 +1757,27 @@
     if (dropped.length) handleFiles(dropped);
   });
 
-  // En mode Console (desktop), la page entière doit défiler librement.
-  // On n'applique les verrous anti-rebond que pour le mode Vinyle (mobile).
-  function applyTouchLocks(){
-    const isConsole = document.body.classList.contains('theme-console');
-    if (isConsole){
-      // Mode console : tout déverrouiller, la page défile librement
-      document.documentElement.style.touchAction = '';
-      document.body.style.touchAction = '';
-      document.querySelector('.device').style.touchAction = '';
-      document.querySelector('.screen').style.touchAction = '';
-      document.querySelectorAll('.view').forEach(v => v.style.touchAction = '');
-    } else {
-      // Mode vinyle (mobile) : bloquer le bounce sur les conteneurs fixes,
-      // mais autoriser pan-y sur tout ce qui peut scroller (.screen et .view).
-      document.documentElement.style.touchAction = 'none';
-      document.body.style.touchAction = 'none';
-      document.querySelector('.device').style.touchAction = 'none';
-      // .screen et .view doivent être pan-y pour qu'iOS autorise le scroll vertical
-      document.querySelector('.screen').style.touchAction = 'pan-y';
-      document.querySelectorAll('.view').forEach(v => v.style.touchAction = 'pan-y');
-    }
+  // Détection iPhone (Safari iOS uniquement)
+  const isIphone = /iPhone/.test(navigator.userAgent);
+  if (isIphone){
+    document.documentElement.classList.add('is-iphone');
+    document.body.classList.add('is-iphone');
   }
-  applyTouchLocks();
 
-  // Anti-bounce iOS/Chrome : bloquer le scroll du document (body fixe),
-  // mais laisser défiler les .view. On attache un listener wheel+touchmove
-  // directement sur chaque .view pour gérer le clamp aux bornes sans
-  // propager au body (ce qui freezerait Chrome).
-  document.addEventListener('touchmove', function(e){
-    if (document.body.classList.contains('theme-console')) return;
-    let node = e.target;
-    while (node && node !== document.documentElement){
-      const ov = window.getComputedStyle(node).overflowY;
-      if ((ov === 'auto' || ov === 'scroll') && node.scrollHeight > node.clientHeight) return;
-      node = node.parentElement;
-    }
-    e.preventDefault();
-  }, { passive:false });
-
-  // Chrome : empêcher la propagation du wheel au body quand la .view
-  // est déjà en butée haut ou bas (sinon Chrome freeze le scroll suivant).
-  document.querySelectorAll('.view').forEach(function(view){
-    view.addEventListener('wheel', function(e){
-      const atTop = view.scrollTop === 0;
-      const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 1;
-      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)){
-        e.preventDefault();
+  // Anti-bounce : uniquement sur iPhone (les autres n'en ont pas besoin).
+  if (isIphone){
+    document.addEventListener('touchmove', function(e){
+      if (document.body.classList.contains('theme-console')) return;
+      let node = e.target;
+      while (node && node !== document.documentElement){
+        if (node.classList && (node.classList.contains('view') || node.classList.contains('tracklist'))){
+          return;
+        }
+        node = node.parentElement;
       }
+      e.preventDefault();
     }, { passive:false });
-  });
+  }
 
   (async function init(){
     try{ await loadLibraryFromDB(); }catch(e){}
