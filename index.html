@@ -60,12 +60,13 @@
     height:100%; height:100dvh;
     overflow:hidden;
     position:fixed; width:100%;
+    touch-action: none;
     overscroll-behavior: none;
   }
-  /* iPhone uniquement : pas de position:fixed sur html (conflit scroll Safari iOS) */
-  html.is-iphone{
-    position:static;
-  }
+  html.is-iphone{ position:static; }
+  body.is-iphone{ position:static; touch-action:pan-x pan-y; }
+  body.is-iphone .device{ touch-action:pan-x pan-y; }
+  body.is-iphone .view{ transform:translateZ(0); }
   body{
     margin:0;
     background: radial-gradient(120% 140% at 50% -10%, var(--felt) 0%, var(--bg) 55%);
@@ -78,11 +79,6 @@
     touch-action: none;
     overscroll-behavior: none;
   }
-  /* iPhone : body pas fixed, touch-action permissif */
-  body.is-iphone{
-    position:static;
-    touch-action: pan-x pan-y;
-  }
   .device{
     width:100%; max-width:460px;
     display:flex; flex-direction:column;
@@ -92,9 +88,6 @@
     overflow:hidden;
     touch-action: none;
     overscroll-behavior: none;
-  }
-  body.is-iphone .device{
-    touch-action: pan-x pan-y;
   }
   .topbar{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -111,21 +104,12 @@
     color:var(--muted); text-transform:uppercase;
   }
 
-  .screen{ flex:1; min-height:0; position:relative; padding:0; overflow:hidden; }
-  .view{
-    position:absolute; top:0; left:0; right:0; bottom:0;
-    width:100%; height:100%; box-sizing:border-box;
-    padding:0 16px;
-    overflow-y:auto; -webkit-overflow-scrolling:touch;
+  .screen{ flex:1; min-height:0; overflow:hidden; position:relative; padding:0 16px; }
+  .view{ position:absolute; inset:0; padding:0 16px; overflow-y:auto; -webkit-overflow-scrolling:touch;
     touch-action: pan-y;
-    overscroll-behavior-y: contain;
-    overscroll-behavior-x: none;
-    opacity:1; transform:translateX(0);
-    transition:opacity .28s ease, transform .28s ease;
-  }
-  body.is-iphone .view{ transform:translateZ(0); }
+    overscroll-behavior: contain;
+    opacity:1; transform:translateX(0); transition:opacity .28s ease, transform .28s ease; }
   .view.hidden{ opacity:0; pointer-events:none; transform:translateX(14px); }
-  body.is-iphone .view.hidden{ transform:translateX(14px) translateZ(0); }
   .view::-webkit-scrollbar{ display:none; }
 
   /* ---------- Library view ---------- */
@@ -389,7 +373,49 @@
 
   .eq-toprow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; }
   .balance-wrap{ display:flex; align-items:center; gap:6px; flex:1; max-width:150px; }
-  .balance-wrap input[type=range]{ flex:1; accent-color:var(--amber); }
+  .balance-track{ position:relative; flex:1; }
+  .balance-track::after{
+    content:'';
+    position:absolute;
+    left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    width:2px; height:10px;
+    background:var(--cream);
+    opacity:0.4;
+    border-radius:1px;
+    pointer-events:none;
+  }
+  .balance-track input[type=range]{ width:100%; }
+  .balance-track input[type=range]{
+    flex:1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--cream);
+    opacity: 0.5;
+    outline: none;
+    cursor: pointer;
+  }
+  .balance-track input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    box-shadow: 0 0 3px #0006;
+  }
+  .balance-track input[type=range]::-moz-range-thumb{
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--amber);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 3px #0006;
+  }
 
   .player-empty{
     display:none; align-items:center; justify-content:center; text-align:center; min-height:340px;
@@ -624,7 +650,9 @@
         </select>
         <div class="balance-wrap">
           <span class="eq-name">G</span>
+          <div class="balance-track">
           <input type="range" id="balanceSlider" min="-1" max="1" step="0.05" value="0">
+          </div>
           <span class="eq-name">D</span>
         </div>
       </div>
@@ -722,7 +750,6 @@
 
   let audioCtx = null, splitter = null, analyserL = null, analyserR = null;
   let timeDataL = null, timeDataR = null, eqRunning = false;
-  let eqRafId = null;
   let needleAngleL = -65, needleAngleR = -65;
 
   let vinylFxNode = null, vinylFxGain = null;
@@ -950,15 +977,10 @@
     if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2)) !== 'ID3') return null;
     const majorVersion = dv.getUint8(3);
     const flags = dv.getUint8(5);
+    if (flags & 0x40) return null; // extended header present — skip for simplicity
     const size = synchsafe32(dv, 6);
     const end = Math.min(10 + size, buf.byteLength);
     let offset = 10;
-    if (flags & 0x40){
-      if (offset + 4 > end) return null;
-      const extSize = (majorVersion >= 4) ? synchsafe32(dv, offset) : dv.getUint32(offset);
-      offset += extSize;
-      if (offset >= end) return null;
-    }
     const result = {};
     while (offset + 10 <= end){
       const frameId = String.fromCharCode(dv.getUint8(offset), dv.getUint8(offset+1), dv.getUint8(offset+2), dv.getUint8(offset+3));
@@ -990,11 +1012,9 @@
     const p = new Promise((resolve)=>{
       const a = new Audio();
       a.preload = 'metadata';
-      const url = URL.createObjectURL(file);
-      a.src = url;
-      const done = (val)=>{ URL.revokeObjectURL(url); resolve(val); };
-      a.onloadedmetadata = ()=> done(isFinite(a.duration) ? a.duration : 0);
-      a.onerror = ()=> done(0);
+      a.src = URL.createObjectURL(file);
+      a.onloadedmetadata = ()=> resolve(isFinite(a.duration) ? a.duration : 0);
+      a.onerror = ()=> resolve(0);
     });
     return withTimeout(p, 6000, 0);
   }
@@ -1253,13 +1273,10 @@
     });
   }
 
-  let _currentTrackUrl = null;
   function loadTrack(idx, autoplay, seekTime){
     currentIndex = idx;
     const t = currentAlbum.tracks[idx];
-    if (_currentTrackUrl) URL.revokeObjectURL(_currentTrackUrl);
-    _currentTrackUrl = URL.createObjectURL(t.file);
-    audio.src = _currentTrackUrl;
+    audio.src = URL.createObjectURL(t.file);
     trackTitle.textContent = t.title;
     trackArtist.textContent = t.artist;
     highlightRow();
@@ -1277,15 +1294,8 @@
     platter.classList.toggle('spinning', playing);
     tonearm.classList.toggle('down', playing);
     playIcon.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
-    if (playing){
-      startEqualizer();
-      if (vinylFxToggle.checked) startVinylFx();
-    } else {
-      eqRunning = false;
-      if (eqRafId !== null){ cancelAnimationFrame(eqRafId); eqRafId = null; }
-      stopVinylFx();
-      drawEqualizer();
-    }
+    if (playing){ startEqualizer(); if (vinylFxToggle.checked) startVinylFx(); }
+    else { eqRunning = false; stopVinylFx(); /* aiguilles restent en place */ }
   }
 
   // ---------- Theme switch ----------
@@ -1307,12 +1317,10 @@
   }
   themeSwitch.addEventListener('click', ()=>{
     const isConsole = document.body.classList.contains('theme-console');
-    const next = isConsole ? 'vinyl' : 'console';
-    setTheme(next);
-    savePrefs({ theme: next });
+    setTheme(isConsole ? 'vinyl' : 'console');
     if (!audio.paused) startEqualizer();
   });
-  setTheme(loadPrefs().theme || 'vinyl');
+  setTheme('vinyl');
 
   // ---------- Settings panel: light/dark, accent color, vinyl crackle ----------
   settingsBtn.addEventListener('click', ()=>{
@@ -1362,70 +1370,45 @@
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioCtx.createMediaElementSource(audio);
 
-      // EQ
       bassFilter = audioCtx.createBiquadFilter();
       bassFilter.type = 'lowshelf'; bassFilter.frequency.value = 200; bassFilter.gain.value = eqGains.bass;
+
       midFilter = audioCtx.createBiquadFilter();
       midFilter.type = 'peaking'; midFilter.frequency.value = 1000; midFilter.Q.value = 0.9; midFilter.gain.value = eqGains.mid;
+
       trebleFilter = audioCtx.createBiquadFilter();
       trebleFilter.type = 'highshelf'; trebleFilter.frequency.value = 3200; trebleFilter.gain.value = eqGains.treble;
 
-      // Panner (optionnel)
-      try {
-        pannerNode = audioCtx.createStereoPanner();
-        pannerNode.pan.value = parseFloat(balanceSlider.value) || 0;
-      } catch(e) { pannerNode = null; }
+      pannerNode = audioCtx.createStereoPanner ? audioCtx.createStereoPanner() : null;
 
-      // Chaîne EQ → destination
+      splitter = audioCtx.createChannelSplitter(2);
+      analyserL = audioCtx.createAnalyser(); analyserL.fftSize = 1024; analyserL.smoothingTimeConstant = 0;
+      analyserR = audioCtx.createAnalyser(); analyserR.fftSize = 1024; analyserR.smoothingTimeConstant = 0;
+      timeDataL = new Uint8Array(analyserL.fftSize);
+      timeDataR = new Uint8Array(analyserR.fftSize);
+
       source.connect(bassFilter);
       bassFilter.connect(midFilter);
       midFilter.connect(trebleFilter);
-      if (pannerNode){
-        trebleFilter.connect(pannerNode);
-        pannerNode.connect(audioCtx.destination);
-      } else {
-        trebleFilter.connect(audioCtx.destination);
-      }
-
-      // Splitter → analysers VU (branché sur trebleFilter, avant le panner)
-      splitter = audioCtx.createChannelSplitter(2);
-      trebleFilter.connect(splitter);
-      analyserL = audioCtx.createAnalyser();
-      analyserL.fftSize = 1024;
-      analyserL.smoothingTimeConstant = 0;
-      analyserR = audioCtx.createAnalyser();
-      analyserR.fftSize = 1024;
-      analyserR.smoothingTimeConstant = 0;
-      timeDataL = new Uint8Array(analyserL.fftSize);
-      timeDataR = new Uint8Array(analyserR.fftSize);
+      const outNode = pannerNode || trebleFilter;
+      if (pannerNode){ trebleFilter.connect(pannerNode); pannerNode.pan.value = -(parseFloat(balanceSlider.value) || 0); }
+      outNode.connect(audioCtx.destination);
+      outNode.connect(splitter);
       splitter.connect(analyserL, 0);
       splitter.connect(analyserR, 1);
 
-      // Vinyl FX
       vinylFxGain = audioCtx.createGain();
       vinylFxGain.gain.value = 0.22;
       vinylFxGain.connect(audioCtx.destination);
-
-    }catch(e){ console.error('[VU] AudioGraph error:', e); audioCtx = null; }
+    }catch(e){ /* graph already connected or unsupported */ }
   }
 
   function startEqualizer(){
-    console.log('[VU] startEqualizer called');
     ensureAudioGraph();
-    console.log('[VU] analyserL:', analyserL, 'audioCtx:', audioCtx ? audioCtx.state : 'null');
-    if (!analyserL) { console.error('[VU] analyserL is null - graph failed'); return; }
-    if (eqRafId !== null){ cancelAnimationFrame(eqRafId); eqRafId = null; }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (eqRunning || !analyserL) return;
     eqRunning = true;
-    if (audioCtx && audioCtx.state === 'suspended'){
-      console.log('[VU] audioCtx suspended, resuming...');
-      audioCtx.resume().then(()=>{
-        console.log('[VU] audioCtx resumed, state:', audioCtx.state);
-        if (eqRunning) drawEqualizer();
-      }).catch((e)=>{ console.error('[VU] resume failed:', e); });
-    } else {
-      console.log('[VU] audioCtx already running, starting draw');
-      drawEqualizer();
-    }
+    drawEqualizer();
   }
 
   function rmsLevel(analyser, data){
@@ -1501,27 +1484,17 @@
         needleAngleR += dR * 0.06;
         vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
         vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
-        // Ne relancer la retombée que si eqRunning est toujours false
-        if (!eqRunning){ eqRafId = requestAnimationFrame(drawEqualizer); }
-        else { eqRafId = null; } // play relancé pendant la retombée → on laisse startEqualizer prendre la main
-      } else {
-        needleAngleL = -65; needleAngleR = -65;
-        vuNeedleL.setAttribute('transform','rotate(-65 110 125)');
-        vuNeedleR.setAttribute('transform','rotate(-65 110 125)');
-        eqRafId = null;
+        requestAnimationFrame(drawEqualizer);
       }
       return;
     }
-    const rmsL = rmsLevel(analyserL, timeDataL);
-    const rmsR = rmsLevel(analyserR, timeDataR);
-    if (Math.random() < 0.02) console.log('[VU] rmsL:', rmsL.toFixed(4), 'rmsR:', rmsR.toFixed(4), 'audioState:', audioCtx ? audioCtx.state : 'null');
-    const targetL = dbToAngle(20 * Math.log10(Math.max(rmsL, 0.0001)));
-    const targetR = dbToAngle(20 * Math.log10(Math.max(rmsR, 0.0001)));
+    const targetL = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserL, timeDataL), 0.0001)));
+    const targetR = dbToAngle(20 * Math.log10(Math.max(rmsLevel(analyserR, timeDataR), 0.0001)));
     needleAngleL += (targetL - needleAngleL) * (targetL > needleAngleL ? 0.35 : 0.08);
     needleAngleR += (targetR - needleAngleR) * (targetR > needleAngleR ? 0.35 : 0.08);
     vuNeedleL.setAttribute('transform', 'rotate(' + needleAngleL.toFixed(1) + ' 110 125)');
     vuNeedleR.setAttribute('transform', 'rotate(' + needleAngleR.toFixed(1) + ' 110 125)');
-    eqRafId = requestAnimationFrame(drawEqualizer);
+    requestAnimationFrame(drawEqualizer);
   }
 
   let vinylNoiseSource = null;
@@ -1566,7 +1539,7 @@
 
   balanceSlider.addEventListener('input', ()=>{
     ensureAudioGraph();
-    if (pannerNode) pannerNode.pan.value = parseFloat(balanceSlider.value);
+    if (pannerNode) pannerNode.pan.value = -parseFloat(balanceSlider.value);
   });
 
   const EQ_PRESETS = {
@@ -1594,7 +1567,6 @@
     if (!currentAlbum) return;
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
-    if (pos === -1) pos = 0;
     if (pos < order.length - 1){
       loadTrack(order[pos+1], true);
     } else if (repeatOn){
@@ -1609,7 +1581,6 @@
     if (audio.currentTime > 3){ audio.currentTime = 0; return; }
     let order = getOrder();
     let pos = order.indexOf(currentIndex);
-    if (pos === -1) pos = 0;
     if (pos > 0){ loadTrack(order[pos-1], true); }
     else { audio.currentTime = 0; }
   }
@@ -1796,25 +1767,28 @@
     if (dropped.length) handleFiles(dropped);
   });
 
-  // Détection iPhone (Safari iOS uniquement)
+  // Empêcher le scroll/bounce de la page sur Chrome iOS via touch-action CSS.
+  // Les zones scrollables internes ont touch-action:pan-y dans le CSS.
+  // iPhone uniquement : fix scroll Safari iOS
   const isIphone = /iPhone/.test(navigator.userAgent);
   if (isIphone){
     document.documentElement.classList.add('is-iphone');
     document.body.classList.add('is-iphone');
-  }
-
-  // Anti-bounce : uniquement sur iPhone (les autres n'en ont pas besoin).
-  if (isIphone){
     document.addEventListener('touchmove', function(e){
-      if (document.body.classList.contains('theme-console')) return;
       let node = e.target;
       while (node && node !== document.documentElement){
-        if (node.classList && (node.classList.contains('view') || node.classList.contains('tracklist'))){
-          return;
-        }
+        if (node.classList && (node.classList.contains('view') || node.classList.contains('tracklist'))) return;
         node = node.parentElement;
       }
       e.preventDefault();
+    }, { passive:false });
+  } else {
+    document.documentElement.style.touchAction = 'none';
+    document.body.style.touchAction = 'none';
+    document.querySelector('.device').style.touchAction = 'none';
+    document.querySelectorAll('.view').forEach(v => v.style.touchAction = 'pan-y');
+    document.addEventListener('touchmove', function(e){
+      if (!e.target.closest('.view')) e.preventDefault();
     }, { passive:false });
   }
 
